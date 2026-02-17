@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lyrics Display</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #1a1a2e, #16213e);
+      color: #e0e0e0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      padding: 12px 20px;
+      background: rgba(0,0,0,0.3);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #FFB74D;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      flex: 1;
+    }
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .search-input {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      color: #e0e0e0;
+      padding: 6px 12px;
+      font-family: inherit;
+      font-size: 14px;
+      width: 220px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus {
+      border-color: #FFB74D;
+    }
+    .search-input::placeholder { color: rgba(255,255,255,0.35); }
+
+    .btn {
+      background: rgba(255,183,77,0.15);
+      border: 1px solid rgba(255,183,77,0.3);
+      color: #FFB74D;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: rgba(255,183,77,0.25); }
+    .btn-danger {
+      background: rgba(239,83,80,0.15);
+      border-color: rgba(239,83,80,0.3);
+      color: #ef5350;
+    }
+    .btn-danger:hover { background: rgba(239,83,80,0.25); }
+
+    /* Main layout */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: rgba(0,0,0,0.2);
+      border-right: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-header {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .sidebar-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 0;
+    }
+    .sidebar-item {
+      padding: 10px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border-left: 3px solid transparent;
+      color: rgba(255,255,255,0.7);
+    }
+    .sidebar-item:hover {
+      background: rgba(255,255,255,0.05);
+      color: #fff;
+    }
+    .sidebar-item.active {
+      background: rgba(255,183,77,0.1);
+      border-left-color: #FFB74D;
+      color: #FFB74D;
+    }
+    .sidebar-empty {
+      padding: 20px 16px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.3);
+      text-align: center;
+    }
+
+    /* Content area */
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 30px 40px;
+      min-width: 0;
+    }
+
+    .lyrics-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 0;
+    }
+
+    .lyrics-lines {
+      font-size: 19px;
+      line-height: 1.85;
+      font-weight: 300;
+      white-space: pre-wrap;
+      color: rgba(255,255,255,0.9);
+      letter-spacing: 0.2px;
+    }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      padding: 20px 0 10px;
+      flex-shrink: 0;
+    }
+    .page-btn {
+      background: rgba(255,183,77,0.12);
+      border: 1px solid rgba(255,183,77,0.25);
+      color: #FFB74D;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 80px;
+    }
+    .page-btn:hover:not(:disabled) { background: rgba(255,183,77,0.22); }
+    .page-btn:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+    .page-info {
+      font-size: 14px;
+      color: rgba(255,255,255,0.5);
+      min-width: 100px;
+      text-align: center;
+    }
+
+    /* Status bar */
+    .status-bar {
+      padding: 6px 20px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+      background: rgba(0,0,0,0.2);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    /* Scrollbar */
+    .sidebar-list::-webkit-scrollbar { width: 6px; }
+    .sidebar-list::-webkit-scrollbar-track { background: transparent; }
+    .sidebar-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+    .sidebar-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+    /* Loading spinner */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      color: rgba(255,255,255,0.4);
+      font-size: 15px;
+    }
+
+    /* Slideshow toggle */
+    .slideshow-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .slideshow-switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .slideshow-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slideshow-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255,255,255,0.15);
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+    .slideshow-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+    .slideshow-switch input:checked + .slideshow-slider {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .slideshow-switch input:checked + .slideshow-slider:before {
+      transform: translateX(20px);
+    }
+    .slideshow-label {
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      user-select: none;
+    }
+    .slideshow-countdown {
+      font-size: 13px;
+      color: #FFB74D;
+      font-variant-numeric: tabular-nums;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    /* Speed radio buttons */
+    .speed-options {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .speed-radio {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .speed-radio:hover {
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.7);
+    }
+    .speed-radio:has(input:checked) {
+      background: rgba(255,183,77,0.15);
+      border-color: rgba(255,183,77,0.3);
+      color: #FFB74D;
+    }
+    .speed-radio input {
+      display: none;
+    }
+    .add-time-btn {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    .add-time-btn:hover {
+      background: rgba(255,183,77,0.15);
+      border-color: rgba(255,183,77,0.3);
+      color: #FFB74D;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title" id="songTitle">Bol 4 Seoul</div>
+  <div class="header-controls">
+    <input type="text" class="search-input" id="searchInput" placeholder="Search Dropbox files..." disabled>
+    <button class="btn" id="searchBtn" disabled onclick="handleSearch()">Search</button>
+    <button class="btn" id="authBtn" onclick="handleAuth()">Sign In</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">Files</div>
+    <div class="sidebar-list" id="sidebarList">
+      <div class="sidebar-item active" onclick="loadDefaultLyrics()">bol4_seoul.txt (default)</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="lyrics-container">
+      <div class="lyrics-lines" id="lyricsDisplay"></div>
+    </div>
+    <div class="pagination">
+      <button class="page-btn" id="prevBtn" onclick="prevPage()" disabled>&larr; Prev</button>
+      <span class="page-info" id="pageInfo">Page 1 of 1</span>
+      <button class="page-btn" id="nextBtn" onclick="nextPage()" disabled>Next &rarr;</button>
+      <div class="slideshow-controls">
+        <label class="slideshow-switch">
+          <input type="checkbox" id="slideshowToggle">
+          <span class="slideshow-slider"></span>
+        </label>
+        <span class="slideshow-label" id="slideshowLabel">Slideshow</span>
+        <span class="slideshow-countdown" id="slideshowCountdown"></span>
+      </div>
+      <div class="speed-options">
+        <label class="speed-radio"><input type="radio" name="speed" value="15000"> 15s</label>
+        <label class="speed-radio"><input type="radio" name="speed" value="20000" checked> 20s</label>
+        <label class="speed-radio"><input type="radio" name="speed" value="25000"> 25s</label>
+        <button class="add-time-btn" id="addTimeBtn" onclick="addTime(10)">+10s</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar">Press &larr; &rarr; arrow keys to navigate pages</div>
+
+<script>
+// ─── Default lyrics (bol4_seoul.txt embedded) ───
+const DEFAULT_LYRICS = `Bol 4 Seoul
+
+S-E-O-U-L, in an unfamiliar city where we first met
+S-E-O-U-L, 처음 만난 낯선 도시에서
+S-E-O-U-L, cheoeum mannan nachseon dosieseo
+
+shining among people
+사람들 사이에 빛이 나는
+salamdeul saie bacchii naneun
+
+With a cool boy with a guitar, yeah
+기타를 멘 멋진 소년과, yeah
+gitaleul men meosjin sonyeongwa, yeah
+
+A love story in love
+사랑에 빠진 love story
+salang-e ppajin love story
+I want to listen too much
+들어볼래 지나치게도
+deul-eobollae jinachigedo
+
+It'll be like a novel
+소설 같은 이야기일 거야
+soseol gat-eun iyagiil geoya
+Maybe someday, on the day the flower petals fall
+Maybe someday, 꽃잎이 떨어지는 그날에
+Maybe someday, kkoch-ip-i tteol-eojineun geunal-e
+
+where we met
+우리가 만난 그곳에서
+uliga mannan geugos-eseo
+
+When I hear a guitar from far away, I
+멀리서 기타 소리가 들리면 나
+meolliseo gita soliga deullimyeon na
+
+I'll sing a song for you
+너를 위해 노랠 부를 거야
+neoleul wihae nolael buleul geoya
+yeah
+yeah
+yeah
+
+(Ooh-ooh-ooh-ooh) yeah, yeah, yeah
+(Ooh-ooh-ooh-ooh) yeah, yeah, yeah
+(Ooh-ooh-ooh-ooh) yeah, yeah, yeah
+City of light, in this city full of light
+City of light, 빛이 가득한 이 도시에서
+City of light, bich-i gadeughan i dosieseo
+
+Dreaming with sparkling eyes
+눈을 반짝이며 꿈을 꾸는
+nun-eul banjjag-imyeo kkum-eul kkuneun
+
+With a cool girl holding a mic, yeah
+마이크를 쥔 멋진 소녀와, yeah
+maikeuleul jwin meosjin sonyeowa, yeah
+
+A love story in love (story, story)
+사랑에 빠진 love story (story, story)
+salang-e ppajin love story (story, story)
+Maybe someday, on the day the flower petals fall
+Maybe someday, 꽃잎이 떨어지는 그날에
+Maybe someday, kkoch-ip-i tteol-eojineun geunal-e
+
+where we met
+우리가 만난 그곳에서
+uliga mannan geugos-eseo
+
+When I hear a guitar from far away, I
+멀리서 기타 소리가 들리면 나
+meolliseo gita soliga deullimyeon na
+
+I'll sing a song for you
+너를 위해 노랠 부를 거야
+neoleul wihae nolael buleul geoya
+In the city I once loved
+언젠가 사랑했던 그 도시에서
+eonjenga salanghaessdeon geu dosieseo
+
+If you remember my voice
+내 목소릴 기억한다면
+nae mogsolil gieoghandamyeon
+
+Let's meet then
+그때 우리 만나자
+geuttae uli mannaja
+
+My S-E-O-U-L (Seoul)
+My S-E-O-U-L (Seoul)
+My S-E-O-U-L (Seoul)
+Someday, on the day you and I dreamed of
+Someday, 너와 나 꿈꿔왔던 그날에
+Someday, neowa na kkumkkwowassdeon geunal-e
+
+Where we face each other
+서로가 마주한 곳에서
+seologa majuhan gos-eseo
+
+If I could smile brightly
+환하게 미소 지을 수 있다면 나
+hwanhage miso jieul su issdamyeon na
+
+sing for you
+너를 위해 노래해
+neoleul wihae nolaehae
+Someday, on that day
+Someday, 그때 그날에
+Someday, geuttae geunal-e
+
+where we met
+우리가 만난 그곳에서
+uliga mannan geugos-eseo
+
+When I hear your voice from far away
+멀리서 네 목소리가 들리면 나
+meolliseo ne mogsoliga deullimyeon na
+
+I'll sing a song for you
+너를 위해 노랠 부를 거야
+neoleul wihae nolael buleul geoya
+yeah
+yeah
+yeah
+
+(Ooh-ooh-ooh-ooh) yeah, yeah, yeah
+(Ooh-ooh-ooh-ooh) yeah, yeah, yeah
+(Ooh-ooh-ooh-ooh) yeah, yeah, yeah
+Ooh-ooh-ooh-ooh, ooh-ooh-ooh-ooh, yeah
+Ooh-ooh-ooh-ooh, ooh-ooh-ooh-ooh, yeah
+Ooh-ooh-ooh-ooh, ooh-ooh-ooh-ooh, yeah
+
+Ooh-ooh-ooh-ooh
+Ooh-ooh-ooh-ooh
+Ooh-ooh-ooh-ooh`;
+
+const DEFAULT_TITLE = 'Bol 4 Seoul';
+
+// ─── Config ───
+let APP_KEY = null;
+const REDIRECT_URI = window.location.origin + window.location.pathname;
+const LINES_PER_PAGE = 18;
+
+// ─── State ───
+let accessToken = null;
+let allLines = [];
+let currentPage = 0;
+let totalPages = 0;
+let currentFileName = DEFAULT_TITLE;
+let sidebarFiles = []; // [{name, path}]
+let slideshowEnabled = false;
+let slideshowInterval = null;
+let slideshowSpeed = 20000;
+
+// ─── DOM refs ───
+const songTitle = document.getElementById('songTitle');
+const lyricsDisplay = document.getElementById('lyricsDisplay');
+const pageInfo = document.getElementById('pageInfo');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const statusBar = document.getElementById('statusBar');
+const authBtn = document.getElementById('authBtn');
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const sidebarList = document.getElementById('sidebarList');
+
+// ─── PKCE OAuth helpers ───
+function generateCodeVerifier() {
+  const array = new Uint8Array(64);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+async function generateCodeChallenge(verifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+// ─── Auth ───
+async function fetchAppKey() {
+  try {
+    const res = await fetch('/api/dropbox-config');
+    const data = await res.json();
+    if (data.appKey) {
+      APP_KEY = data.appKey;
+    } else {
+      setStatus('Dropbox config error: ' + (data.error || 'No app key'));
+    }
+  } catch (err) {
+    setStatus('Failed to load Dropbox config: ' + err.message);
+  }
+}
+
+async function handleAuth() {
+  if (accessToken) {
+    // Sign out
+    accessToken = null;
+    authBtn.textContent = 'Sign In';
+    searchInput.disabled = true;
+    searchBtn.disabled = true;
+    sidebarFiles = [];
+    renderSidebar();
+    setStatus('Signed out');
+    return;
+  }
+  if (!APP_KEY) {
+    setStatus('Dropbox app key not loaded');
+    return;
+  }
+  // Sign in: start PKCE flow
+  const verifier = generateCodeVerifier();
+  const challenge = await generateCodeChallenge(verifier);
+  sessionStorage.setItem('dropbox_code_verifier', verifier);
+
+  const authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=${APP_KEY}&response_type=code&code_challenge=${challenge}&code_challenge_method=S256&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&token_access_type=online`;
+  window.location.href = authUrl;
+}
+
+async function handleOAuthRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (!code) return;
+
+  const verifier = sessionStorage.getItem('dropbox_code_verifier');
+  if (!verifier) return;
+
+  setStatus('Exchanging auth code...');
+  const body = new URLSearchParams({
+    code,
+    grant_type: 'authorization_code',
+    client_id: APP_KEY,
+    redirect_uri: REDIRECT_URI,
+    code_verifier: verifier,
+  });
+
+  try {
+    const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      accessToken = data.access_token;
+      authBtn.textContent = 'Sign Out';
+      authBtn.classList.add('btn-danger');
+      searchInput.disabled = false;
+      searchBtn.disabled = false;
+      sessionStorage.removeItem('dropbox_code_verifier');
+      window.history.replaceState({}, document.title, REDIRECT_URI);
+      setStatus('Signed in to Dropbox');
+    } else {
+      setStatus('Auth failed: ' + (data.error_description || data.error || 'Unknown'));
+    }
+  } catch (err) {
+    setStatus('Auth error: ' + err.message);
+  }
+}
+
+// ─── Dropbox API ───
+async function searchDropbox(query) {
+  if (!accessToken) return;
+  setStatus('Searching...');
+  try {
+    const res = await fetch('https://api.dropboxapi.com/2/files/search_v2', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        options: {
+          max_results: 50,
+          file_extensions: ['txt'],
+        },
+      }),
+    });
+    const data = await res.json();
+    if (data.matches) {
+      sidebarFiles = data.matches
+        .map(m => m.metadata?.metadata || m.metadata)
+        .filter(m => m && m.name && m.name.endsWith('.txt'))
+        .map(m => ({ name: m.name, path: m.path_lower || m.path_display }));
+      renderSidebar();
+      setStatus(`Found ${sidebarFiles.length} file(s)`);
+    } else {
+      setStatus('No results');
+    }
+  } catch (err) {
+    setStatus('Search error: ' + err.message);
+  }
+}
+
+async function listFolder(path) {
+  if (!accessToken) return;
+  setStatus('Loading folder...');
+  try {
+    const res = await fetch('https://api.dropboxapi.com/2/files/list_folder', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path }),
+    });
+    const data = await res.json();
+    if (data.entries) {
+      sidebarFiles = data.entries
+        .filter(e => e['.tag'] === 'file' && e.name.endsWith('.txt'))
+        .map(e => ({ name: e.name, path: e.path_lower || e.path_display }));
+      renderSidebar();
+      setStatus(`${sidebarFiles.length} .txt file(s) in folder`);
+    }
+  } catch (err) {
+    setStatus('Folder error: ' + err.message);
+  }
+}
+
+async function downloadFile(filePath, fileName) {
+  if (!accessToken) return;
+  setStatus('Downloading ' + fileName + '...');
+  try {
+    const res = await fetch('https://content.dropboxapi.com/2/files/download', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Dropbox-API-Arg': JSON.stringify({ path: filePath }),
+      },
+    });
+    const text = await res.text();
+    currentFileName = fileName.replace(/\.txt$/i, '');
+    loadText(text);
+    setStatus('Loaded: ' + fileName);
+  } catch (err) {
+    setStatus('Download error: ' + err.message);
+  }
+}
+
+// ─── Search handler ───
+function handleSearch() {
+  const query = searchInput.value.trim();
+  if (!query) return;
+  searchDropbox(query);
+}
+
+// ─── Sidebar rendering ───
+function renderSidebar() {
+  let html = '<div class="sidebar-item' + (currentFileName === DEFAULT_TITLE ? ' active' : '') + '" onclick="loadDefaultLyrics()">bol4_seoul.txt (default)</div>';
+  for (const f of sidebarFiles) {
+    const isActive = currentFileName === f.name.replace(/\.txt$/i, '');
+    html += `<div class="sidebar-item${isActive ? ' active' : ''}" onclick="loadDropboxFile('${f.path.replace(/'/g, "\\'")}', '${f.name.replace(/'/g, "\\'")}')">${f.name}</div>`;
+  }
+  if (sidebarFiles.length === 0 && accessToken) {
+    html += '<div class="sidebar-empty">Search for .txt files above</div>';
+  }
+  sidebarList.innerHTML = html;
+}
+
+// ─── Text loading & pagination ───
+function loadText(text) {
+  allLines = text.split('\n');
+  // Remove trailing empty lines
+  while (allLines.length > 0 && allLines[allLines.length - 1].trim() === '') {
+    allLines.pop();
+  }
+  totalPages = Math.max(1, Math.ceil(allLines.length / LINES_PER_PAGE));
+  currentPage = 0;
+  // Reset slideshow
+  stopSlideshow();
+  slideshowEnabled = false;
+  slideshowToggle.checked = false;
+  slideshowLabel.textContent = 'Slideshow';
+  renderPage();
+  renderSidebar();
+}
+
+function renderPage() {
+  const start = currentPage * LINES_PER_PAGE;
+  const pageLines = allLines.slice(start, start + LINES_PER_PAGE);
+  lyricsDisplay.textContent = pageLines.join('\n');
+  songTitle.textContent = currentFileName;
+  pageInfo.textContent = `Page ${currentPage + 1} of ${totalPages}`;
+  prevBtn.disabled = currentPage === 0;
+  nextBtn.disabled = currentPage >= totalPages - 1;
+}
+
+function prevPage() {
+  if (currentPage > 0) { currentPage--; renderPage(); if (slideshowEnabled) startSlideshow(); }
+}
+
+function nextPage() {
+  if (currentPage < totalPages - 1) { currentPage++; renderPage(); if (slideshowEnabled) startSlideshow(); }
+}
+
+function loadDefaultLyrics() {
+  currentFileName = DEFAULT_TITLE;
+  loadText(DEFAULT_LYRICS);
+}
+
+function loadDropboxFile(path, name) {
+  downloadFile(path, name);
+}
+
+// ─── Keyboard nav ───
+document.addEventListener('keydown', (e) => {
+  // Don't intercept when typing in search
+  if (document.activeElement === searchInput) return;
+  if (e.key === 'ArrowLeft') { prevPage(); }
+  else if (e.key === 'ArrowRight') { nextPage(); }
+});
+
+// Enter key in search
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') handleSearch();
+});
+
+// ─── Slideshow ───
+const slideshowToggle = document.getElementById('slideshowToggle');
+const slideshowLabel = document.getElementById('slideshowLabel');
+const slideshowCountdown = document.getElementById('slideshowCountdown');
+let countdownRemaining = 0;
+let countdownInterval = null;
+
+function startSlideshow() {
+  stopSlideshow();
+  countdownRemaining = slideshowSpeed / 1000;
+  slideshowCountdown.textContent = countdownRemaining + 's';
+  countdownInterval = setInterval(() => {
+    countdownRemaining--;
+    if (countdownRemaining <= 0) {
+      if (currentPage < totalPages - 1) {
+        currentPage++;
+      } else {
+        currentPage = 0;
+      }
+      renderPage();
+      countdownRemaining = slideshowSpeed / 1000;
+    }
+    slideshowCountdown.textContent = countdownRemaining + 's';
+  }, 1000);
+}
+
+function addTime(seconds) {
+  if (slideshowEnabled) {
+    countdownRemaining += seconds;
+    slideshowCountdown.textContent = countdownRemaining + 's';
+  }
+}
+
+function stopSlideshow() {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+  slideshowCountdown.textContent = '';
+}
+
+slideshowToggle.addEventListener('change', () => {
+  slideshowEnabled = slideshowToggle.checked;
+  slideshowLabel.textContent = slideshowEnabled ? 'Slideshow ON' : 'Slideshow';
+  if (slideshowEnabled) {
+    startSlideshow();
+  } else {
+    stopSlideshow();
+  }
+});
+
+document.querySelectorAll('input[name="speed"]').forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    slideshowSpeed = parseInt(e.target.value, 10);
+    if (slideshowEnabled) {
+      startSlideshow();
+    }
+  });
+});
+
+// ─── Status ───
+function setStatus(msg) {
+  statusBar.textContent = msg;
+}
+
+// ─── Init ───
+(async function init() {
+  // Fetch Dropbox app key from serverless endpoint
+  await fetchAppKey();
+  // Check for OAuth redirect
+  await handleOAuthRedirect();
+  // Load default lyrics
+  loadDefaultLyrics();
+})();
+</script>
+</body>
+</html>

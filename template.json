@@ -1,0 +1,18 @@
+[
+  {
+    "en": "S-E-O-U-L, in an unfamiliar city where we first met",
+    "kr": "S-E-O-U-L, 처음 만난 낯선 도시에서",
+    "rom": "S-E-O-U-L, cheoeum mannan nachseon dosieseo"
+  },
+  {
+    "en": "Shining among people",
+    "kr": "사람들 사이에 빛이 나는",
+    "rom": "salamdeul saie bich-i naneun"
+  },
+  {
+    "en": "(Add more lines following this same pattern...)",
+    "kr": "(이 패턴을 따라 더 많은 줄을 추가하세요...)",
+    "rom": "(Keep adding objects with en, kr, rom keys)"
+  }
+]
+
