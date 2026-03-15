@@ -162,6 +162,86 @@
       color: rgba(255,255,255,0.9);
       letter-spacing: 0.2px;
     }
+    .lyrics-line {
+      display: block;
+      transition: background 0.2s;
+      border-radius: 4px;
+      padding: 0 4px;
+    }
+
+    /* Study mode: hide odd lines (1st, 3rd, 5th...) */
+    .lyrics-lines.study-hide-odd .lyrics-line:nth-child(odd):not(.lyrics-line-empty) {
+      color: transparent;
+      background: rgba(255,255,255,0.08);
+    }
+    .lyrics-lines.study-hide-odd .lyrics-line:nth-child(odd):not(.lyrics-line-empty):hover {
+      color: rgba(255,255,255,0.9);
+      background: rgba(255,183,77,0.12);
+    }
+    /* Study mode: hide even lines (2nd, 4th, 6th...) */
+    .lyrics-lines.study-hide-even .lyrics-line:nth-child(even):not(.lyrics-line-empty) {
+      color: transparent;
+      background: rgba(255,255,255,0.08);
+    }
+    .lyrics-lines.study-hide-even .lyrics-line:nth-child(even):not(.lyrics-line-empty):hover {
+      color: rgba(255,255,255,0.9);
+      background: rgba(255,183,77,0.12);
+    }
+
+    /* Study mode toggle group */
+    .study-toggle-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .study-btn {
+      padding: 6px 14px;
+      font-size: 13px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .study-switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .study-switch input { opacity: 0; width: 0; height: 0; }
+    .study-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255,255,255,0.15);
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+    .study-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    .study-switch input:checked + .study-slider {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .study-switch input:checked + .study-slider:before {
+      transform: translateX(20px);
+    }
+    .study-mode-label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.5);
+      min-width: 90px;
+    }
 
     /* Pagination */
     .pagination {
@@ -369,6 +449,14 @@
         <label class="speed-radio"><input type="radio" name="speed" value="20000" checked> 20s</label>
         <label class="speed-radio"><input type="radio" name="speed" value="25000"> 25s</label>
         <button class="add-time-btn" id="addTimeBtn" onclick="addTime(10)">+10s</button>
+      </div>
+      <div class="study-toggle-group">
+        <button id="studyBtn" class="study-btn" style="background:#555; color:#aaa;">Study</button>
+        <label class="study-switch" id="studySwitchWrap" style="display:none;" title="Toggle: hide odd vs even lines">
+          <input type="checkbox" id="studyToggle">
+          <span class="study-slider"></span>
+        </label>
+        <span class="study-mode-label" id="studyModeLabel" style="display:none;">Hide Top Line</span>
       </div>
     </div>
   </div>
@@ -809,7 +897,13 @@ function loadText(text) {
 function renderPage() {
   const start = currentPage * LINES_PER_PAGE;
   const pageLines = allLines.slice(start, start + LINES_PER_PAGE);
-  lyricsDisplay.textContent = pageLines.join('\n');
+  const html = pageLines.map(line => {
+    const escaped = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const cls = line.trim() === '' ? 'lyrics-line lyrics-line-empty' : 'lyrics-line';
+    return `<span class="${cls}">${escaped}\n</span>`;
+  }).join('');
+  lyricsDisplay.innerHTML = html;
+  applyStudyMode();
   songTitle.textContent = currentFileName;
   pageInfo.textContent = `Page ${currentPage + 1} of ${totalPages}`;
   prevBtn.disabled = currentPage === 0;
@@ -898,6 +992,73 @@ document.querySelectorAll('input[name="speed"]').forEach(radio => {
     }
   });
 });
+
+// ─── Study Mode ───
+let studyMode = 'off'; // 'off', 'odd', 'even'
+const studyBtn = document.getElementById('studyBtn');
+const studyToggle = document.getElementById('studyToggle');
+const studySwitchWrap = document.getElementById('studySwitchWrap');
+const studyModeLabel = document.getElementById('studyModeLabel');
+
+function applyStudyMode() {
+  lyricsDisplay.classList.remove('study-hide-odd', 'study-hide-even');
+  if (studyMode === 'odd') lyricsDisplay.classList.add('study-hide-odd');
+  else if (studyMode === 'even') lyricsDisplay.classList.add('study-hide-even');
+}
+
+studyBtn.addEventListener('click', () => {
+  if (studyMode === 'off') {
+    studyMode = 'odd';
+    studyBtn.textContent = 'Study On';
+    studyBtn.style.background = 'rgb(102, 126, 234)';
+    studyBtn.style.color = 'white';
+    studySwitchWrap.style.display = '';
+    studyModeLabel.style.display = '';
+    studyToggle.checked = false;
+    studyModeLabel.textContent = 'Hide Top Line';
+  } else {
+    studyMode = 'off';
+    studyBtn.textContent = 'Study';
+    studyBtn.style.background = '#555';
+    studyBtn.style.color = '#aaa';
+    studySwitchWrap.style.display = 'none';
+    studyModeLabel.style.display = 'none';
+  }
+  applyStudyMode();
+  localStorage.setItem('ldStudyMode', studyMode);
+});
+
+studyToggle.addEventListener('change', () => {
+  if (studyToggle.checked) {
+    studyMode = 'even';
+    studyModeLabel.textContent = 'Hide Bottom Line';
+  } else {
+    studyMode = 'odd';
+    studyModeLabel.textContent = 'Hide Top Line';
+  }
+  applyStudyMode();
+  localStorage.setItem('ldStudyMode', studyMode);
+});
+
+// Load saved study preference
+(function loadStudyPref() {
+  const saved = localStorage.getItem('ldStudyMode');
+  if (saved && saved !== 'off') {
+    studyMode = saved;
+    studyBtn.textContent = 'Study On';
+    studyBtn.style.background = 'rgb(102, 126, 234)';
+    studyBtn.style.color = 'white';
+    studySwitchWrap.style.display = '';
+    studyModeLabel.style.display = '';
+    if (saved === 'even') {
+      studyToggle.checked = true;
+      studyModeLabel.textContent = 'Hide Bottom Line';
+    } else {
+      studyToggle.checked = false;
+      studyModeLabel.textContent = 'Hide Top Line';
+    }
+  }
+})();
 
 // ─── Status ───
 function setStatus(msg) {
