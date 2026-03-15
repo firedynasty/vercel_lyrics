@@ -330,8 +330,12 @@
 <div class="header">
   <div class="header-title" id="songTitle">Bol 4 Seoul</div>
   <div class="header-controls">
-    <input type="text" class="search-input" id="searchInput" placeholder="Search Dropbox files..." disabled>
-    <button class="btn" id="searchBtn" disabled onclick="handleSearch()">Search</button>
+    <select id="dbxFolderSelect" style="padding: 6px 10px; background: #131313; color: white; border: 1px solid #333; border-radius: 6px; font-size: 13px; max-width: 200px;" disabled>
+      <option value="" disabled selected>DB Folders</option>
+    </select>
+    <select id="dbxFileSelect" style="padding: 6px 10px; background: #131313; color: white; border: 1px solid #333; border-radius: 6px; font-size: 13px; max-width: 200px;" disabled>
+      <option value="" disabled selected>DB Files</option>
+    </select>
     <button class="btn" id="authBtn" onclick="handleAuth()">Sign In</button>
   </div>
 </div>
@@ -536,9 +540,10 @@ const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const statusBar = document.getElementById('statusBar');
 const authBtn = document.getElementById('authBtn');
-const searchInput = document.getElementById('searchInput');
-const searchBtn = document.getElementById('searchBtn');
+const dbxFolderSelect = document.getElementById('dbxFolderSelect');
+const dbxFileSelect = document.getElementById('dbxFileSelect');
 const sidebarList = document.getElementById('sidebarList');
+const DBX_LYRICS_ROOT = '/blob_vercel_replacement/lyrics';
 
 // ─── PKCE OAuth helpers ───
 function generateCodeVerifier() {
@@ -580,8 +585,10 @@ async function handleAuth() {
     // Sign out
     accessToken = null;
     authBtn.textContent = 'Sign In';
-    searchInput.disabled = true;
-    searchBtn.disabled = true;
+    dbxFolderSelect.disabled = true;
+    dbxFolderSelect.innerHTML = '<option value="" disabled selected>DB Folders</option>';
+    dbxFileSelect.disabled = true;
+    dbxFileSelect.innerHTML = '<option value="" disabled selected>DB Files</option>';
     sidebarFiles = [];
     renderSidebar();
     setStatus('Signed out');
@@ -628,11 +635,10 @@ async function handleOAuthRedirect() {
       accessToken = data.access_token;
       authBtn.textContent = 'Sign Out';
       authBtn.classList.add('btn-danger');
-      searchInput.disabled = false;
-      searchBtn.disabled = false;
       sessionStorage.removeItem('dropbox_code_verifier');
       window.history.replaceState({}, document.title, REDIRECT_URI);
       setStatus('Signed in to Dropbox');
+      loadLyricsFolders();
     } else {
       setStatus('Auth failed: ' + (data.error_description || data.error || 'Unknown'));
     }
@@ -642,43 +648,9 @@ async function handleOAuthRedirect() {
 }
 
 // ─── Dropbox API ───
-async function searchDropbox(query) {
+async function loadLyricsFolders() {
   if (!accessToken) return;
-  setStatus('Searching...');
-  try {
-    const res = await fetch('https://api.dropboxapi.com/2/files/search_v2', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query,
-        options: {
-          max_results: 50,
-          file_extensions: ['txt'],
-        },
-      }),
-    });
-    const data = await res.json();
-    if (data.matches) {
-      sidebarFiles = data.matches
-        .map(m => m.metadata?.metadata || m.metadata)
-        .filter(m => m && m.name && m.name.endsWith('.txt'))
-        .map(m => ({ name: m.name, path: m.path_lower || m.path_display }));
-      renderSidebar();
-      setStatus(`Found ${sidebarFiles.length} file(s)`);
-    } else {
-      setStatus('No results');
-    }
-  } catch (err) {
-    setStatus('Search error: ' + err.message);
-  }
-}
-
-async function listFolder(path) {
-  if (!accessToken) return;
-  setStatus('Loading folder...');
+  setStatus('Loading lyrics folders...');
   try {
     const res = await fetch('https://api.dropboxapi.com/2/files/list_folder', {
       method: 'POST',
@@ -686,19 +658,84 @@ async function listFolder(path) {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ path: DBX_LYRICS_ROOT }),
     });
     const data = await res.json();
     if (data.entries) {
-      sidebarFiles = data.entries
-        .filter(e => e['.tag'] === 'file' && e.name.endsWith('.txt'))
-        .map(e => ({ name: e.name, path: e.path_lower || e.path_display }));
-      renderSidebar();
-      setStatus(`${sidebarFiles.length} .txt file(s) in folder`);
+      // Get subfolders
+      const folders = data.entries
+        .filter(e => e['.tag'] === 'folder')
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      // Get root-level .txt files
+      const rootFiles = data.entries
+        .filter(e => e['.tag'] === 'file' && e.name.toLowerCase().endsWith('.txt'))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+      dbxFolderSelect.disabled = false;
+      dbxFolderSelect.innerHTML = '<option value="" disabled selected>DB Folders</option>';
+      // Add root as an option if it has files
+      if (rootFiles.length > 0) {
+        const opt = document.createElement('option');
+        opt.value = DBX_LYRICS_ROOT;
+        opt.textContent = '/ (root)';
+        dbxFolderSelect.appendChild(opt);
+      }
+      folders.forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.path_lower || f.path_display;
+        opt.textContent = f.name;
+        dbxFolderSelect.appendChild(opt);
+      });
+      setStatus(`Found ${folders.length} folder(s), ${rootFiles.length} root file(s)`);
+
+      // Auto-load root files into sidebar if any
+      if (rootFiles.length > 0) {
+        sidebarFiles = rootFiles.map(e => ({ name: e.name, path: e.path_lower || e.path_display }));
+        renderSidebar();
+        populateFileDropdown(sidebarFiles);
+      }
     }
   } catch (err) {
     setStatus('Folder error: ' + err.message);
   }
+}
+
+async function loadFolderFiles(folderPath) {
+  if (!accessToken) return;
+  setStatus('Loading files...');
+  try {
+    const res = await fetch('https://api.dropboxapi.com/2/files/list_folder', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path: folderPath }),
+    });
+    const data = await res.json();
+    if (data.entries) {
+      sidebarFiles = data.entries
+        .filter(e => e['.tag'] === 'file' && e.name.toLowerCase().endsWith('.txt'))
+        .map(e => ({ name: e.name, path: e.path_lower || e.path_display }))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      renderSidebar();
+      populateFileDropdown(sidebarFiles);
+      setStatus(`${sidebarFiles.length} file(s) in folder`);
+    }
+  } catch (err) {
+    setStatus('Folder error: ' + err.message);
+  }
+}
+
+function populateFileDropdown(files) {
+  dbxFileSelect.disabled = false;
+  dbxFileSelect.innerHTML = '<option value="" disabled selected>DB Files</option>';
+  files.forEach((f, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = f.name.replace(/\.txt$/i, '');
+    dbxFileSelect.appendChild(opt);
+  });
 }
 
 async function downloadFile(filePath, fileName) {
@@ -712,7 +749,11 @@ async function downloadFile(filePath, fileName) {
         'Dropbox-API-Arg': JSON.stringify({ path: filePath }),
       },
     });
-    const text = await res.text();
+    const rawText = await res.text();
+    // Filter out comment lines (lines starting with .)
+    const text = rawText.split('\n')
+      .filter(line => !line.trimStart().startsWith('.'))
+      .join('\n');
     currentFileName = fileName.replace(/\.txt$/i, '');
     loadText(text);
     setStatus('Loaded: ' + fileName);
@@ -721,12 +762,18 @@ async function downloadFile(filePath, fileName) {
   }
 }
 
-// ─── Search handler ───
-function handleSearch() {
-  const query = searchInput.value.trim();
-  if (!query) return;
-  searchDropbox(query);
-}
+// ─── Dropdown event listeners ───
+dbxFolderSelect.addEventListener('change', (e) => {
+  const folderPath = e.target.value;
+  if (folderPath) loadFolderFiles(folderPath);
+});
+
+dbxFileSelect.addEventListener('change', (e) => {
+  const idx = parseInt(e.target.value);
+  if (!isNaN(idx) && sidebarFiles[idx]) {
+    downloadFile(sidebarFiles[idx].path, sidebarFiles[idx].name);
+  }
+});
 
 // ─── Sidebar rendering ───
 function renderSidebar() {
@@ -736,7 +783,7 @@ function renderSidebar() {
     html += `<div class="sidebar-item${isActive ? ' active' : ''}" onclick="loadDropboxFile('${f.path.replace(/'/g, "\\'")}', '${f.name.replace(/'/g, "\\'")}')">${f.name}</div>`;
   }
   if (sidebarFiles.length === 0 && accessToken) {
-    html += '<div class="sidebar-empty">Search for .txt files above</div>';
+    html += '<div class="sidebar-empty">Select a folder from DB Folders</div>';
   }
   sidebarList.innerHTML = html;
 }
@@ -788,15 +835,8 @@ function loadDropboxFile(path, name) {
 
 // ─── Keyboard nav ───
 document.addEventListener('keydown', (e) => {
-  // Don't intercept when typing in search
-  if (document.activeElement === searchInput) return;
   if (e.key === 'ArrowLeft') { prevPage(); }
   else if (e.key === 'ArrowRight') { nextPage(); }
-});
-
-// Enter key in search
-searchInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') handleSearch();
 });
 
 // ─── Slideshow ───
@@ -872,6 +912,7 @@ function setStatus(msg) {
   await handleOAuthRedirect();
   // Load default lyrics
   loadDefaultLyrics();
+  // If already signed in (from OAuth redirect), folders are loaded in handleOAuthRedirect
 })();
 </script>
 </body>
