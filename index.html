@@ -838,9 +838,10 @@ async function downloadFile(filePath, fileName) {
       },
     });
     const rawText = await res.text();
-    // Filter out comment lines (lines starting with .)
+    // Filter out comment lines (starting with .) and convert || to blank lines
     const text = rawText.split('\n')
       .filter(line => !line.trimStart().startsWith('.'))
+      .map(line => line.trim() === '||' ? '' : line)
       .join('\n');
     currentFileName = fileName.replace(/\.txt$/i, '');
     loadText(text);
